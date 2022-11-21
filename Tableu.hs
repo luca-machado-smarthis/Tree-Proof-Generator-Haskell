@@ -2,6 +2,7 @@ module Tableu where
 
 import Data.Char
 import Data.List
+import Data.Binary.Get (skip)
 
 ---                    --- Essa seção se concentram as declarações especificas de 
 --- Estrutura de dados --- "data's" utilizados no programa bem como instancias de 
@@ -40,8 +41,9 @@ showBool True = "V:"
 
 instance Show Formula where
     show (Formula a b c d e) 
-                    | not d = showBool e ++ show ( a ++ [c] ++ b ++ ['/'])
+                    | not d = showBool e ++ show ( a ++ [c] ++ b)
                     | otherwise = showBool e ++ show a
+    show Skip = "skiped"
 
 ---                      --- Nessa seção estão todas as formulas usadas para tratar strings 
 --- Tratamento de String --- de tal modo que as transformarem em formulas (a estrutura) além 
@@ -119,12 +121,14 @@ breakdownFormula str idx = (take idx str, str !! idx, drop (idx + 1) str)
 --Também remove parenteses--
 checkForNegation :: String -> (String, Bool)
 checkForNegation str
+  | (head str == '~') && isStringAtomic str = (drop 1 str, False)
   | head str /= '~' = (removeParenthesis str, True)
   | otherwise = (drop 2 . init $ str, False)
 
 --Usada apenas na entrada inicial por não remover os parenteses junto
 checkForInitialNegation:: String -> (String, Bool)
 checkForInitialNegation str
+  | (head str == '~') && isStringAtomic str = (drop 1 str, False)
   | head str /= '~' = (str, True)
   | otherwise = (drop 2 . init $ str, False)
 
@@ -200,9 +204,12 @@ resolver str is
 
 --Desenha a arvore para que ela possa ser printada e facilmente vizualizada
 drawTree :: No -> Int -> String
-drawTree no depth | no /= Empty = take (5*depth) (repeat '-') ++ show (formulas no) ++ "\n" ++ drawTree (lno no) (depth+1) ++ "\n" ++ drawTree (rno no) (depth+1)
-                   | otherwise = take (5*depth) (repeat '-') ++ show "_vazio_"
+drawTree no depth | no /= Empty =  showFormulaColumn (formulas no) depth ++ "\n" ++ drawTree (lno no) (depth+1) ++ drawTree (rno no) (depth+1)
+                   | otherwise = []
 
+showFormulaColumn :: [Formula] -> Int -> String
+showFormulaColumn (x:xs) num =  replicate (6*num) '-' ++ show x ++ "\n" ++ showFormulaColumn xs num
+showFormulaColumn [] num = []
 ---           --- Seção onde as função são responsáveis pela validação da arvore
 --- Validação --- e , se necessário, geração do contra modelo
 ---           --- 
@@ -210,36 +217,50 @@ drawTree no depth | no /= Empty = take (5*depth) (repeat '-') ++ show (formulas 
 -- Verifica se uma formula é atomica, (pela formula, não pela
 -- String nela contida)
 
+--Verifica se uma formula é atomica
 isFormulaAtomic :: Formula -> Bool
 isFormulaAtomic form | atomic form = True
                      | otherwise = False
 
+-- de uma lista de formulas, devolve apenas as atômicas
 filterAtomic :: [Formula] -> [Formula]
 filterAtomic forms = (filter isFormulaAtomic forms)
 
+--Retornas todos os ramos separados e devidamente filtrados para mostrar apenas fórmulas atômicas
 getRamosForvalidation :: No -> [Formula] -> [[Formula]]
 getRamosForvalidation no forms | folha no = [forms ++ (filterAtomic (formulas no))]
                     | otherwise = (getRamosForvalidation (lno no) (forms++(filterAtomic (formulas no)))) ++ (getRamosForvalidation (rno no) (forms++(filterAtomic (formulas no))))
 
-checkForContradiction :: [Formula] -> Bool
-checkForContradiction (x:xs) | length [y | y<-xs, lside x == lside y, valid x /= valid y] > 0 = True
-                          | otherwise = checkForContradiction xs
-checkForContradiction [] = False
+-- checa, formula por formulá, se há pelo menos uma formula no mesmo ramo que a contradiz
+-- retornando um Bool (se contradiz ou não). se contradizer, retorna um skip, se não, retorna
+-- a primeira formula que não houve contradição (para criação do contramodelo)
+checkForContradiction :: [Formula] -> (Bool, Formula)
+checkForContradiction x      | length x == 1 = (False, head x)
+checkForContradiction (x:xs) | length [y | y<-xs, lside x == lside y, valid x /= valid y] > 0 = (True, Skip)
+                             | otherwise = checkForContradiction xs
 
-validation :: [[Formula]] -> [Bool]
+-- Aplica o checkForContradiction em uma lista de formulas (no nosso caso, todos os ramos)
+validation :: [[Formula]] -> [(Bool,Formula)]
 validation x = map checkForContradiction x
 
-showValidation :: [Bool] -> String
+-- Mostra se uma formula é valida e um contra modelo, caso a mesma não seja
+showValidation :: [(Bool,Formula)] -> String
 showValidation
- list | any (\x -> x == False) list = "Formula invalida, pelo menos 1 dos ramos nao demonstrou contradição"
-                    | otherwise = "Formula Valida"
+ tupleList | any (\x -> fst x == False) tupleList = showCounterModel( head [ y | (x,y) <- tupleList, not x])
+           | otherwise = showCounterModel Skip
+
+-- Formula auxiliar do showValidation
+showCounterModel :: Formula -> String
+showCounterModel form | form == Skip = "Formula Valida!"
+                      | valid form = "Formula invalida, ao menos 1 ramo nao apresenta contradicao - Contra Modelo: " ++ lside form ++ ": verdadeiro"
+                      | otherwise =  "Formula invalida, ao menos 1 ramo nao apresenta contradicao - Contra Modelo: " ++ lside form ++ ": falso"
 
 main = do
     putStrLn "Digite sua formula:"
     input <- getLine
-    let test = checkForInitialNegation input
-    let op_idx = findOP (fst test)
-    let initial = formulaParser  (breakdownFormula (fst test) op_idx) False (not (snd test))
+    let initial_formula = checkForInitialNegation input
+    let op_idx = findOP (fst initial_formula)
+    let initial = formulaParser  (breakdownFormula (fst initial_formula) op_idx) False (not (snd initial_formula))
     let initial_node = No [initial] True Empty Empty
     let noo = buildTree initial_node
     putStr (drawTree noo 0)

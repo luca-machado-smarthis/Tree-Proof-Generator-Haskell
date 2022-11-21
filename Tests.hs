@@ -20,8 +20,8 @@ testing = do
     let n = input
     let initial_formula = checkForInitialNegation (choiceSelection n)
     let op_idx = findOP (fst initial_formula)
-    let parsed = formulaParser  (breakdownFormula (fst initial_formula) op_idx) False (not (snd initial_formula))
-    let initial_node = No [parsed] True Empty Empty
+    let initial = formulaParser  (breakdownFormula (fst initial_formula) op_idx) False (not (snd initial_formula))
+    let initial_node = No [initial] True Empty Empty
     let noo = buildTree initial_node
     putStr (drawTree noo 0)
     print (showValidation (validation (getRamosForvalidation noo [])))
