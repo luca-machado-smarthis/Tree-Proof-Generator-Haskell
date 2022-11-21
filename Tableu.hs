@@ -1,3 +1,5 @@
+module Tableu where
+
 import Data.Char
 import Data.List
 
@@ -215,7 +217,6 @@ isFormulaAtomic form | atomic form = True
 filterAtomic :: [Formula] -> [Formula]
 filterAtomic forms = (filter isFormulaAtomic forms)
 
--- Não esquecer de chamar com list vazia
 getRamosForvalidation :: No -> [Formula] -> [[Formula]]
 getRamosForvalidation no forms | folha no = [forms ++ (filterAtomic (formulas no))]
                     | otherwise = (getRamosForvalidation (lno no) (forms++(filterAtomic (formulas no)))) ++ (getRamosForvalidation (rno no) (forms++(filterAtomic (formulas no))))
@@ -229,17 +230,14 @@ validation :: [[Formula]] -> [Bool]
 validation x = map checkForContradiction x
 
 showValidation :: [Bool] -> String
-showValidation list | any (\x -> x == False) list = "Formula invalida, pelo menos 1 dos ramos nao demonstrou contradição"
+showValidation
+ list | any (\x -> x == False) list = "Formula invalida, pelo menos 1 dos ramos nao demonstrou contradição"
                     | otherwise = "Formula Valida"
---- EXEMPLOS ---
 
-ex1 = "(p_(q^r))>((p_q)^(p_r))"
-ex2 = "a>(a>(b>a))"
-ex3 = "b>(a^(b_a))"
-
--- NÃO FINAL --
 main = do
-    let test = checkForInitialNegation ex2
+    putStrLn "Digite sua formula:"
+    input <- getLine
+    let test = checkForInitialNegation input
     let op_idx = findOP (fst test)
     let initial = formulaParser  (breakdownFormula (fst test) op_idx) False (not (snd test))
     let initial_node = No [initial] True Empty Empty
